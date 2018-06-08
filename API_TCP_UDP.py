@@ -50,7 +50,7 @@ class API_TCP_UDP():
                 print (self.package) #remove later
                 
                 self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
-                                    'SYN': 1, 'ACK': random.randint(0,50)})
+                                    'SYN': 1, 'ACK': random.randint(0,50), 'window_size': 3000})
 
                 package_string = json.dumps(self.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
@@ -165,4 +165,19 @@ class API_TCP_UDP():
             self.socket.close()
         else:
             print ("\nSomething is wrong. The connection was not closed.\n")
+    
+    def send_data(aData, connected):
+        '''
+            Aqui temos que ver se o array de dados vindo do client ultrapassa o MSS...(1500)
+            Ultrapassando... deverá ser segmentado os dados... dai que entram os pacotes e a janela...
+            a janela é uma lista de pacotes... e aqui se faz importante o numero de sequencia ao segmentar os dados...
 
+            a partir do envio do primeiro pacote devemos começar a calcular o RTT (estimativa de ida e volta)
+            no livro é citado o sampleRTT (esse NAO DEVE ser calculado para segmentos retransmitidos.)
+            procurar por estimatedRTT (tem uma fórmula específica)
+
+
+            devemos inserir timeout... entre outros controles
+        '''
+
+        

@@ -13,4 +13,6 @@ object_client = API_TCP_UDP()
 
 connection = object_client.connection('localhost', 12000)
 
-object_client.close_connection(connection)
+object_client.send_data({'dados do pacote....'}, connection)
+
+#object_client.close_connection(connection)
