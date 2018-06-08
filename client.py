@@ -12,3 +12,5 @@ object_client = API_TCP_UDP()
         print ("You must to inform a integer number!\n")'''
 
 connection = object_client.connection('localhost', 12000)
+
+object_client.close_connection(connection)
