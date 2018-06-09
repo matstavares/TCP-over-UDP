@@ -3,7 +3,7 @@
 '''
 Authors: Juliani Schlickmann Damasceno
          Mateus Seenem Tavares
-Description: This file contain functions developed to use in UDP connections. 
+Description: This file contain functions developed to use in UDP connectionself. 
 '''
 from socket import *
 import random
@@ -15,7 +15,7 @@ class API_TCP_UDP():
         Constructor default
     '''
     def __init__(self):
-        # header TCP attributes
+        # header TCP attributes -------- segments header
         self.package = {}
         self.package['origin_port'] = None
         self.package['destination_port'] = None
@@ -23,11 +23,12 @@ class API_TCP_UDP():
         self.package['confirmation_number'] = None #it's a known ACK 
         self.package['length_header'] = None
         self.package['flags'] = { 'ACK': None, 'SYN': None, 'FIN': None }  #dictionary (it's look like a json ['key': value])
-        self.package['window_size'] = None
         self.package['data'] = ""
+        self.package['rwnd'] = None #receiver window 
 
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.window = None 
         self.MSS = 1500 
 
     '''
@@ -50,7 +51,7 @@ class API_TCP_UDP():
                 print (self.package) #remove later
                 
                 self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
-                                    'SYN': 1, 'ACK': random.randint(0,50), 'window_size': 3000})
+                                    'ACK': 1, 'rwnd': 65535})
 
                 package_string = json.dumps(self.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
@@ -73,8 +74,7 @@ class API_TCP_UDP():
 
                 if self.package['flags']['FIN'] is not None:
 
-                    self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': self.package['flags']['ACK']})
+                    self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port})
 
                     package_string = json.dumps(self.package, sort_keys=True, indent=4)
                     print ("\nSending a package!\n\n")
@@ -116,7 +116,7 @@ class API_TCP_UDP():
             print (self.package) #remove later
             
             self.update_values({'origin_port': self.package['destination_port'], 'destination_port': self.package['origin_port'],
-                                'confirmation_number': self.package['flags']['ACK'], 'SYN': 0})
+                                'SYN': 0})
 
             package_string = json.dumps(self.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
@@ -166,9 +166,11 @@ class API_TCP_UDP():
         else:
             print ("\nSomething is wrong. The connection was not closed.\n")
     
-    def send_data(aData, connected):
+    def send_data(data_file, connected):
+        self.socket, (address, port) = connected
+
         '''
-            Aqui temos que ver se o array de dados vindo do client ultrapassa o MSS...(1500)
+            Aqui temos que ver se o array de dados vindo do client ultrapassa o MSs...(1500)
             Ultrapassando... deverá ser segmentado os dados... dai que entram os pacotes e a janela...
             a janela é uma lista de pacotes... e aqui se faz importante o numero de sequencia ao segmentar os dados...
 
@@ -180,4 +182,3 @@ class API_TCP_UDP():
             devemos inserir timeout... entre outros controles
         '''
 
-        
