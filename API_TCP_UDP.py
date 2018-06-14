@@ -163,15 +163,32 @@ class API_TCP_UDP():
 
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
+        variavel = ''
+        aData_segmento = 0
 
-        while len(aData) > self.MTU:
-            print("")
-            #quebrar os dados em até 1460 (MSS)
-            #chamar função que cria packge passando o dado segmentado...
+        for item in aData:
+            print (item)
+            temp = item
+            while (len(temp)- len(variavel)) > 3: #depois trocar 3 por 1460 (MSS)
+                for aData_segmento in temp[aData_segmento:3]:
+                    variavel += aData_segmento
+                
+                temp = temp.replace(variavel, "")  
+                self.create_package(variavel) #create segment 
+                aData_segmento = 0
+                variavel = ''
+                #break
 
+            self.create_package(temp)
+
+
+    
     def create_package(self, aData):
-        self.package = self.update_values({'data': aData})
-        print (self.package)
+        self.update_values({'ACK': 0, 'data': aData})
+
+        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        
+        print (package_string)
 
         #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
         #se quiser criar uma nova funcao... fica a vontade....
