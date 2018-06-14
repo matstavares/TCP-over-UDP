@@ -20,7 +20,7 @@ class API_TCP_UDP():
         self.package['origin_port'] = None
         self.package['destination_port'] = None
         self.package['sequence_number'] = None
-        self.package['confirmation_number'] = None #it's a known ACK 
+        self.package['confirmation_number'] = None #it's a ACK
         self.package['length_header'] = None
         self.package['flags'] = { 'ACK': None, 'SYN': None, 'FIN': None }  #dictionary (it's look like a json ['key': value])
         self.package['data'] = ""
@@ -28,8 +28,8 @@ class API_TCP_UDP():
 
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.window = None 
-        self.MSS = 1500 
+        self.window = {} 
+        self.MTU = 1500 
 
     '''
         Function for the server to listen client's commands
@@ -43,7 +43,7 @@ class API_TCP_UDP():
                 Here starts the handshake 
             '''
             if self.package['confirmation_number'] is None:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MSS) #first touch between server and client
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
                 
                 
                 self.package = json.loads(package_string)
@@ -60,7 +60,7 @@ class API_TCP_UDP():
                 print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
 
                 if self.package['flags']['ACK'] is not None:
-                    package_string, (client_address, client_port) = self.socket.recvfrom(self.MSS) #third touch between server and client
+                    package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
                     
                     self.package = json.loads(package_string)
 
@@ -68,7 +68,7 @@ class API_TCP_UDP():
                     
                     
             else:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MSS) #third touch between server and client
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
                     
                 self.package = json.loads(package_string)
 
@@ -109,7 +109,7 @@ class API_TCP_UDP():
         print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
         if self.package['flags']['SYN'] == 1:
-            package_string, address = self.socket.recvfrom(self.MSS) #second touch between server and client
+            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
             
             self.package = json.loads(package_string)
 
@@ -153,7 +153,7 @@ class API_TCP_UDP():
         
         self.socket.sendto(package_string, (address, port))
 
-        package_string, (address, port) = self.socket.recvfrom(self.MSS) #second touch between server and client
+        package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
 
         self.package = json.loads(package_string)
 
@@ -166,11 +166,24 @@ class API_TCP_UDP():
         else:
             print ("\nSomething is wrong. The connection was not closed.\n")
     
-    def send_data(data_file, connected):
+    def send_data(self, aData, connected):
         self.socket, (address, port) = connected
 
+        while len(aData) > self.MTU:
+            #quebrar os dados em até 1460 (MSS)
+            #chamar função que cria packge passando o dado segmentado...
+
+
+    
+    def create_package(self, aData):
+        package = self.update_values({'data': aData})
+        print (package)
+
+        #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
+        #se quiser criar uma nova funcao... fica a vontade.... 
+
         '''
-            Aqui temos que ver se o array de dados vindo do client ultrapassa o MSs...(1500)
+            Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
             Ultrapassando... deverá ser segmentado os dados... dai que entram os pacotes e a janela...
             a janela é uma lista de pacotes... e aqui se faz importante o numero de sequencia ao segmentar os dados...
 
