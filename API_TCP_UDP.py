@@ -28,8 +28,8 @@ class API_TCP_UDP():
 
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.socket.settimeout(30)
-        self.window = {}
+        #self.socket.settimeout(30)
+        self.window = []
         self.MTU = 1500
 
     '''
@@ -65,6 +65,7 @@ class API_TCP_UDP():
                     self.package = json.loads(package_string)
 
                     print (self.package) #remove later
+
 
             else:
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
@@ -164,31 +165,43 @@ class API_TCP_UDP():
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
-        aData_segmento = 0
 
         for item in aData:
             print (item)
             temp = item
-            while (len(temp)- len(variavel)) > 3: #depois trocar 3 por 1460 (MSS)
-                for aData_segmento in temp[aData_segmento:3]:
+            while (len(temp)- len(variavel)) > 10: #depois trocar 10 por 1460 (MSS)
+                for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
                     variavel += aData_segmento
                 
                 temp = temp.replace(variavel, "")  
                 self.create_package(variavel) #create segment 
                 aData_segmento = 0
                 variavel = ''
-                #break
+                #break #remove later
 
-            self.create_package(temp)
+            temp = temp.replace(variavel, "")
+            if temp is not None:
+                self.create_package(temp)
+
+            aData_segmento = 0
+            variavel = ''
 
 
     
-    def create_package(self, aData):
-        self.update_values({'ACK': 0, 'data': aData})
+    def create_package(self, aData): #temos que criar mais um parametro para controlar o numero de sequencia de cada pacote...
+        self.update_values({'ACK': 0, 'data': aData })
 
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        self._window(self.package)
+
+    def _window(self, package):
+        #package_string = json.dumps(self.package, sort_keys=True, indent=4)
+
+        self.window.append(package)
         
-        print (package_string)
+        print ('MINHA JANELA')
+        print (self.window)
+
+        
 
         #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
         #se quiser criar uma nova funcao... fica a vontade....
