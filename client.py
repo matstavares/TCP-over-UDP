@@ -1,3 +1,6 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+
 from API_TCP_UDP import *
 
 object_client = API_TCP_UDP()

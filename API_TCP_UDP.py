@@ -1,9 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 '''
 Authors: Juliani Schlickmann Damasceno
          Mateus Seenem Tavares
-Description: This file contain functions developed to use in UDP connectionself. 
+Description: This file contain functions developed to use in UDP connectionself.
 '''
 from socket import *
 import random
@@ -24,12 +24,13 @@ class API_TCP_UDP():
         self.package['length_header'] = None
         self.package['flags'] = { 'ACK': None, 'SYN': None, 'FIN': None }  #dictionary (it's look like a json ['key': value])
         self.package['data'] = ""
-        self.package['rwnd'] = None #receiver window 
+        self.package['rwnd'] = None #receiver window
 
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.window = {} 
-        self.MTU = 1500 
+        self.socket.settimeout(30)
+        self.window = {}
+        self.MTU = 1500
 
     '''
         Function for the server to listen client's commands
@@ -40,16 +41,15 @@ class API_TCP_UDP():
 
         while True:
             '''
-                Here starts the handshake 
+                Here starts the handshake
             '''
             if self.package['confirmation_number'] is None:
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
-                
-                
+
                 self.package = json.loads(package_string)
-                
+
                 print (self.package) #remove later
-                
+
                 self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
                                     'ACK': 1, 'rwnd': 65535})
 
@@ -61,15 +61,14 @@ class API_TCP_UDP():
 
                 if self.package['flags']['ACK'] is not None:
                     package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
-                    
+
                     self.package = json.loads(package_string)
 
                     print (self.package) #remove later
-                    
-                    
+
             else:
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
-                    
+
                 self.package = json.loads(package_string)
 
                 if self.package['flags']['FIN'] is not None:
@@ -91,10 +90,6 @@ class API_TCP_UDP():
                     look the sequence logic carefully and talk talk to me if necessary
                 '''
 
-
-
-
-
     def connection(self, server_address, server_port):
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
@@ -110,11 +105,11 @@ class API_TCP_UDP():
 
         if self.package['flags']['SYN'] == 1:
             package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
-            
+
             self.package = json.loads(package_string)
 
             print (self.package) #remove later
-            
+
             self.update_values({'origin_port': self.package['destination_port'], 'destination_port': self.package['origin_port'],
                                 'SYN': 0})
 
@@ -123,10 +118,10 @@ class API_TCP_UDP():
 
             self.socket.sendto(package_string , (server_address, server_port))
             print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
-            
+
             return (self.socket, (server_address, server_port))
 
-    
+
     def change_dictionary_value(self, dictionary, key_to_find, new_value):
         for key in dictionary.keys():
             if key == key_to_find:
@@ -142,15 +137,15 @@ class API_TCP_UDP():
                 self.change_dictionary_value(self.package['flags'], key, val)
             else:
                 self.change_dictionary_value(self.package, key, val)
-    
+
     def close_connection(self, connected):
         self.socket, (address, port) = connected
 
         self.update_values({'FIN': 1})
-        
+
         package_string = json.dumps(self.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
-        
+
         self.socket.sendto(package_string, (address, port))
 
         package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
@@ -165,7 +160,7 @@ class API_TCP_UDP():
             self.socket.close()
         else:
             print ("\nSomething is wrong. The connection was not closed.\n")
-    
+
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
@@ -196,7 +191,7 @@ class API_TCP_UDP():
         print (package_string)
 
         #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
-        #se quiser criar uma nova funcao... fica a vontade.... 
+        #se quiser criar uma nova funcao... fica a vontade....
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
@@ -210,4 +205,3 @@ class API_TCP_UDP():
 
             devemos inserir timeout... entre outros controles
         '''
-
