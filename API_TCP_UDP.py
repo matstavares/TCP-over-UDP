@@ -178,6 +178,7 @@ class API_TCP_UDP():
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
+        number_segment = -1
 
         for item in aData:
             print (item) #remove later
@@ -186,25 +187,27 @@ class API_TCP_UDP():
                 for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
                     variavel += aData_segmento
                 
+                number_segment = number_segment + 1
                 temp = temp.replace(variavel, "")  
-                self.create_package(variavel) #create segment 
+                self.create_package(variavel, number_segment) #create segment 
                 aData_segmento = 0
                 variavel = ''
                 #break #remove later
 
             temp = temp.replace(variavel, "")
             if temp is not None:
-                self.create_package(temp)
+                number_segment = number_segment + 1
+                self.create_package(temp, number_segment)
 
             aData_segmento = 0
             variavel = ''
 
 
     
-    def create_package(self, aData): #temos que criar mais um parametro para controlar o numero de sequencia de cada pacote...
+    def create_package(self, aData, number_segment): 
         object_package = Package()
 
-        object_package.update_values({'ACK': 0, 'data': aData })
+        object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
 
         self._window(object_package.package)
 
