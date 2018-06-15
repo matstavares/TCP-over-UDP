@@ -62,6 +62,7 @@ class API_TCP_UDP():
     def server_listening(self, server_address, server_port):
         self.socket.bind((server_address, server_port))
         print ("\n****** The server is ready! ******\n")
+        random_sequence_number = random.randint(0,100)
 
         object_package = Package()
 
@@ -69,12 +70,13 @@ class API_TCP_UDP():
             '''
                 Here starts the handshake
             '''
-            if object_package.package['confirmation_number'] is None:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
+            package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
 
-                object_package.package = json.loads(package_string)
+            object_package.package = json.loads(package_string)
 
-                print (object_package.package) #remove later
+            print (object_package.package) #remove later
+
+            if object_package.package['confirmation_number'] is None and object_package.package['sequence_number'] is None:
 
                 object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
                                     'ACK': 1, 'rwnd': 65535})
@@ -93,23 +95,22 @@ class API_TCP_UDP():
                     print (object_package.package) #remove later
 
 
-            else:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
+            elif object_package.package['flags']['FIN'] is not None:
 
-                object_package.package = json.loads(package_string)
+                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
 
-                if object_package.package['flags']['FIN'] is not None:
+                package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+                print ("\nSending a package!\n\n")
 
-                    object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
+                print ("\nTERMINANDO CONEXÃO!\n") #remove later
+                self.socket.sendto(package_string , (client_address, client_port))
+                print ("\nConnection finished successfully!\n")
+                self.socket.close()
+                break
 
-                    package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
-                    print ("\nSending a package!\n\n")
+            else: 
 
-                    print ("\nTERMINANDO CONEXÃO!\n") #remove later
-                    self.socket.sendto(package_string , (client_address, client_port))
-                    print ("\nConnection finished successfully!\n")
-                    self.socket.close()
-                    break
+                print('CONTINUAR....')
 
                 '''
                     We must coding here functions such as send_data...
@@ -178,6 +179,7 @@ class API_TCP_UDP():
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
+        segment = 0
         number_segment = -1
 
         for item in aData:
@@ -204,12 +206,17 @@ class API_TCP_UDP():
 
         #verify if window is empty
         #IREI CONTINUAR DAQUI
-        '''if self.window is None:
+        if self.window is None:
             print ('\nThe window is empty. \n')
         else: 
             while True:
-                print ("\nSending a package!\n\n")
-                self.socket.sendto(package_string , (client_address, client_port))'''
+
+                if segment < len(self.window):
+                    print ("\nSending a package!\n\n")
+                    self.socket.sendto(self.window[segment] , (address, port))
+                    segment = segment + 1
+                else:
+                    break
 
     
     def create_package(self, aData, number_segment): 
