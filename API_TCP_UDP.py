@@ -3,7 +3,7 @@
 '''
 Authors: Juliani Schlickmann Damasceno
          Mateus Seenem Tavares
-Description: This file contain functions developed to use in UDP connectionself.
+Description: This file contain functions developed to use in UDP connections.
 '''
 from socket import *
 import random
@@ -202,6 +202,14 @@ class API_TCP_UDP():
             aData_segmento = 0
             variavel = ''
 
+        #verify if window is empty
+        #IREI CONTINUAR DAQUI
+        '''if self.window is None:
+            print ('\nThe window is empty. \n')
+        else: 
+            while True:
+                print ("\nSending a package!\n\n")
+                self.socket.sendto(package_string , (client_address, client_port))'''
 
     
     def create_package(self, aData, number_segment): 
@@ -209,10 +217,11 @@ class API_TCP_UDP():
 
         object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
 
-        self._window(object_package.package)
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+
+        self._window(package_string)
 
     def _window(self, package):
-        #package_string = json.dumps(self.package, sort_keys=True, indent=4)
 
         self.window.append(package)
         
@@ -220,9 +229,6 @@ class API_TCP_UDP():
         print (self.window) #remove later
 
         
-
-        #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
-        #se quiser criar uma nova funcao... fica a vontade....
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
