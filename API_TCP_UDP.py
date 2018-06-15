@@ -180,7 +180,7 @@ class API_TCP_UDP():
         variavel = ''
 
         for item in aData:
-            print (item)
+            print (item) #remove later
             temp = item
             while (len(temp)- len(variavel)) > 10: #depois trocar 10 por 1460 (MSS)
                 for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
@@ -213,8 +213,8 @@ class API_TCP_UDP():
 
         self.window.append(package)
         
-        print ('MINHA JANELA')
-        print (self.window)
+        print ('MINHA JANELA') #remove later
+        print (self.window) #remove later
 
         
 
