@@ -3,7 +3,7 @@
 '''
 Authors: Juliani Schlickmann Damasceno
          Mateus Seenem Tavares
-Description: This file contain functions developed to use in UDP connectionself.
+Description: This file contain functions developed to use in UDP connections.
 '''
 from socket import *
 import random
@@ -178,6 +178,7 @@ class API_TCP_UDP():
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
+        number_segment = -1
 
         for item in aData:
             print (item) #remove later
@@ -186,30 +187,41 @@ class API_TCP_UDP():
                 for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
                     variavel += aData_segmento
                 
+                number_segment = number_segment + 1
                 temp = temp.replace(variavel, "")  
-                self.create_package(variavel) #create segment 
+                self.create_package(variavel, number_segment) #create segment 
                 aData_segmento = 0
                 variavel = ''
                 #break #remove later
 
             temp = temp.replace(variavel, "")
             if temp is not None:
-                self.create_package(temp)
+                number_segment = number_segment + 1
+                self.create_package(temp, number_segment)
 
             aData_segmento = 0
             variavel = ''
 
+        #verify if window is empty
+        #IREI CONTINUAR DAQUI
+        '''if self.window is None:
+            print ('\nThe window is empty. \n')
+        else: 
+            while True:
+                print ("\nSending a package!\n\n")
+                self.socket.sendto(package_string , (client_address, client_port))'''
 
     
-    def create_package(self, aData): #temos que criar mais um parametro para controlar o numero de sequencia de cada pacote...
+    def create_package(self, aData, number_segment): 
         object_package = Package()
 
-        object_package.update_values({'ACK': 0, 'data': aData })
+        object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
 
-        self._window(object_package.package)
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+
+        self._window(package_string)
 
     def _window(self, package):
-        #package_string = json.dumps(self.package, sort_keys=True, indent=4)
 
         self.window.append(package)
         
@@ -217,9 +229,6 @@ class API_TCP_UDP():
         print (self.window) #remove later
 
         
-
-        #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
-        #se quiser criar uma nova funcao... fica a vontade....
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
