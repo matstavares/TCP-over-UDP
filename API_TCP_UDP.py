@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 '''
 Authors: Juliani Schlickmann Damasceno
          Mateus Seenem Tavares
-Description: This file contain functions developed to use in UDP connectionself.
+Description: This file contain functions developed to use in UDP connections.
 '''
 from socket import *
 import random
 import json
 from time import time
 
-class API_TCP_UDP():
+class Package():
     '''
         Constructor default
     '''
@@ -25,103 +25,6 @@ class API_TCP_UDP():
         self.package['flags'] = { 'ACK': None, 'SYN': None, 'FIN': None }  #dictionary (it's look like a json ['key': value])
         self.package['data'] = ""
         self.package['rwnd'] = None #receiver window
-
-        # General attributes
-        self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.socket.settimeout(30)
-        self.window = {}
-        self.MTU = 1500
-
-    '''
-        Function for the server to listen client's commands
-    '''
-    def server_listening(self, server_address, server_port):
-        self.socket.bind((server_address, server_port))
-        print ("\n****** The server is ready! ******\n")
-
-        while True:
-            '''
-                Here starts the handshake
-            '''
-            if self.package['confirmation_number'] is None:
-                package_string, (client_address, client_port) = self.receivingFrom(self.MTU) #first touch between server and client
-
-
-                self.package = json.loads(package_string)
-
-                print (self.package) #remove later
-
-                self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
-                                    'ACK': 1, 'rwnd': 65535})
-
-                package_string = json.dumps(self.package, sort_keys=True, indent=4)
-                print ("\nSending a package!\n\n")
-
-                self.sendingTo(package_string , (client_address, client_port))
-                print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
-
-                if self.package['flags']['ACK'] is not None:
-                    package_string, (client_address, client_port) = self.receivingFrom(self.MTU) #third touch between server and client
-
-                    self.package = json.loads(package_string)
-
-                    print (self.package) #remove later
-
-            else:
-                package_string, (client_address, client_port) = self.receivingFrom(self.MTU) #third touch between server and client
-
-                self.package = json.loads(package_string)
-
-                if self.package['flags']['FIN'] is not None:
-
-                    self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port})
-
-                    package_string = json.dumps(self.package, sort_keys=True, indent=4)
-                    print ("\nSending a package!\n\n")
-
-                    print ("\nTERMINANDO CONEXÃO!\n") #remove later
-                    self.sendingTo(package_string , (client_address, client_port))
-                    print ("\nConnection finished successfully!\n")
-                    self.socket.close()
-                    break
-
-                '''
-                    We must coding here functions such as send_data...
-                    Start window...timeout... sampleRTT ... to control RWND and CWND...
-                    look the sequence logic carefully and talk talk to me if necessary
-                '''
-
-    def connection(self, server_address, server_port):
-        if str(server_address) == 'localhost':
-            server_address = '127.0.0.1'
-
-        #beginning connection
-        self.update_values({'destination_port': server_port,'SYN': 1})
-
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
-        print ("\nSending a package!\n\n")
-
-        self.sendingTo(package_string, (server_address, server_port))
-        print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
-
-        if self.package['flags']['SYN'] == 1:
-            package_string, address = self.receivingFrom(self.MTU) #second touch between server and client
-
-            self.package = json.loads(package_string)
-
-            print (self.package) #remove later
-
-            self.update_values({'origin_port': self.package['destination_port'], 'destination_port': self.package['origin_port'],
-                                'SYN': 0})
-
-            package_string = json.dumps(self.package, sort_keys=True, indent=4)
-            print ("\nSending a package!\n\n")
-
-            self.sendingTo(package_string , (server_address, server_port))
-            print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
-
-            return (self.socket, (server_address, server_port))
-
 
     def change_dictionary_value(self, dictionary, key_to_find, new_value):
         for key in dictionary.keys():
@@ -139,23 +42,133 @@ class API_TCP_UDP():
             else:
                 self.change_dictionary_value(self.package, key, val)
 
+
+
+class API_TCP_UDP():
+    '''
+        Constructor default
+    '''
+    def __init__(self):
+
+        # General attributes
+        self.socket = socket(AF_INET, SOCK_DGRAM)
+        #self.socket.settimeout(30)
+        self.window = []
+        self.MTU = 1500
+
+    '''
+        Function for the server to listen client's commands
+    '''
+    def server_listening(self, server_address, server_port):
+        self.socket.bind((server_address, server_port))
+        print ("\n****** The server is ready! ******\n")
+
+        object_package = Package()
+
+        while True:
+            '''
+                Here starts the handshake
+            '''
+            if object_package.package['confirmation_number'] is None:
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
+
+                object_package.package = json.loads(package_string)
+
+                print (object_package.package) #remove later
+
+                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
+                                    'ACK': 1, 'rwnd': 65535})
+
+                package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+                print ("\nSending a package!\n\n")
+
+                self.socket.sendto(package_string , (client_address, client_port))
+                print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
+
+                if object_package.package['flags']['ACK'] is not None:
+                    package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
+
+                    object_package.package = json.loads(package_string)
+
+                    print (object_package.package) #remove later
+
+
+            else:
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
+
+                object_package.package = json.loads(package_string)
+
+                if object_package.package['flags']['FIN'] is not None:
+
+                    object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
+
+                    package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+                    print ("\nSending a package!\n\n")
+
+                    print ("\nTERMINANDO CONEXÃO!\n") #remove later
+                    self.socket.sendto(package_string , (client_address, client_port))
+                    print ("\nConnection finished successfully!\n")
+                    self.socket.close()
+                    break
+
+                '''
+                    We must coding here functions such as send_data...
+                    Start window...timeout... sampleRTT ... to control RWND and CWND...
+                    look the sequence logic carefully and talk talk to me if necessary
+                '''
+
+    def connection(self, server_address, server_port):
+        if str(server_address) == 'localhost':
+            server_address = '127.0.0.1'
+
+        object_package = Package()
+
+        #beginning connection
+        object_package.update_values({'destination_port': server_port,'SYN': 1})
+
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+        print ("\nSending a package!\n\n")
+
+        self.socket.sendto(package_string , (server_address, server_port))
+        print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
+
+        if object_package.package['flags']['SYN'] == 1:
+            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
+
+            object_package.package = json.loads(package_string)
+
+            print (object_package.package) #remove later
+
+            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': object_package.package['origin_port'],
+                                'SYN': 0})
+
+            package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+            print ("\nSending a package!\n\n")
+
+            self.socket.sendto(package_string , (server_address, server_port))
+            print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
+
+            return (self.socket, (server_address, server_port))
+
     def close_connection(self, connected):
         self.socket, (address, port) = connected
 
-        self.update_values({'FIN': 1})
+        object_package = Package()
 
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        object_package.update_values({'FIN': 1})
+
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
 
-        self.sendingTo(package_string, (address, port))
+        self.socket.sendto(package_string, (address, port))
 
-        package_string, (address, port) = self.receivingFrom(self.MTU) #second touch between server and client
+        package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
 
-        self.package = json.loads(package_string)
+        object_package.package = json.loads(package_string)
 
-        print (self.package) #remove later
+        print (object_package.package) #remove later
 
-        if self.package['flags']['FIN'] == 1:
+        if object_package.package['flags']['FIN'] == 1:
             print ("\nTERMINANDO CONEXÃO!\n") #remove later
             print ("\nConnection finished successfully!\n")
             self.socket.close()
@@ -164,26 +177,58 @@ class API_TCP_UDP():
 
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
+        variavel = ''
+        number_segment = -1
 
-        while len(aData) > self.MTU:
-            print("")
-            #quebrar os dados em até 1460 (MSS)
-            #chamar função que cria packge passando o dado segmentado...
+        for item in aData:
+            print (item) #remove later
+            temp = item
+            while (len(temp)- len(variavel)) > 10: #depois trocar 10 por 1460 (MSS)
+                for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
+                    variavel += aData_segmento
+                
+                number_segment = number_segment + 1
+                temp = temp.replace(variavel, "")  
+                self.create_package(variavel, number_segment) #create segment 
+                aData_segmento = 0
+                variavel = ''
+                #break #remove later
 
-    #wrappers to encode and decode strings to bytes, to be sent/receive from socket
-    def sendingTo(self, package_string, fulladdress):
-        self.socket.sendto(package_string.encode(),fulladdress)
+            temp = temp.replace(variavel, "")
+            if temp is not None:
+                number_segment = number_segment + 1
+                self.create_package(temp, number_segment)
 
-    def receivingFrom(self,mtu):
-        package_string, address = self.socket.recvfrom(mtu)
-        return (package_string.decode(), address)
+            aData_segmento = 0
+            variavel = ''
 
-    def create_package(self, aData):
-        self.package = self.update_values({'data': aData})
-        print (package)
+        #verify if window is empty
+        #IREI CONTINUAR DAQUI
+        '''if self.window is None:
+            print ('\nThe window is empty. \n')
+        else: 
+            while True:
+                print ("\nSending a package!\n\n")
+                self.socket.sendto(package_string , (client_address, client_port))'''
 
-        #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
-        #se quiser criar uma nova funcao... fica a vontade....
+    
+    def create_package(self, aData, number_segment): 
+        object_package = Package()
+
+        object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
+
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
+
+        self._window(package_string)
+
+    def _window(self, package):
+
+        self.window.append(package)
+        
+        print ('MINHA JANELA') #remove later
+        print (self.window) #remove later
+
+        
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
