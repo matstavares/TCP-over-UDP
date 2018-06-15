@@ -10,7 +10,7 @@ import random
 import json
 from time import time
 
-class API_TCP_UDP():
+class Package():
     '''
         Constructor default
     '''
@@ -26,10 +26,34 @@ class API_TCP_UDP():
         self.package['data'] = ""
         self.package['rwnd'] = None #receiver window
 
+    def change_dictionary_value(self, dictionary, key_to_find, new_value):
+        for key in dictionary.keys():
+            if key == key_to_find:
+                dictionary[key] = new_value
+
+    '''
+        This function is the main point to change values in our application.
+        It receive a dic (key: value), notice that is the new value.
+    '''
+    def update_values(self, aKeys):
+        for key,val in aKeys.items():
+            if key == 'SYN' or key == 'ACK' or key == 'FIN':
+                self.change_dictionary_value(self.package['flags'], key, val)
+            else:
+                self.change_dictionary_value(self.package, key, val)
+
+
+
+class API_TCP_UDP():
+    '''
+        Constructor default
+    '''
+    def __init__(self):
+
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.socket.settimeout(30)
-        self.window = {}
+        #self.socket.settimeout(30)
+        self.window = []
         self.MTU = 1500
 
     '''
@@ -39,43 +63,46 @@ class API_TCP_UDP():
         self.socket.bind((server_address, server_port))
         print ("\n****** The server is ready! ******\n")
 
+        object_package = Package()
+
         while True:
             '''
                 Here starts the handshake
             '''
-            if self.package['confirmation_number'] is None:
+            if object_package.package['confirmation_number'] is None:
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
 
-                self.package = json.loads(package_string)
+                object_package.package = json.loads(package_string)
 
-                print (self.package) #remove later
+                print (object_package.package) #remove later
 
-                self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port,
+                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
                                     'ACK': 1, 'rwnd': 65535})
 
-                package_string = json.dumps(self.package, sort_keys=True, indent=4)
+                package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
 
                 self.socket.sendto(package_string , (client_address, client_port))
                 print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
 
-                if self.package['flags']['ACK'] is not None:
+                if object_package.package['flags']['ACK'] is not None:
                     package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
 
-                    self.package = json.loads(package_string)
+                    object_package.package = json.loads(package_string)
 
-                    print (self.package) #remove later
+                    print (object_package.package) #remove later
+
 
             else:
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
 
-                self.package = json.loads(package_string)
+                object_package.package = json.loads(package_string)
 
-                if self.package['flags']['FIN'] is not None:
+                if object_package.package['flags']['FIN'] is not None:
 
-                    self.update_values({'origin_port': self.package['destination_port'], 'destination_port': client_port})
+                    object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
 
-                    package_string = json.dumps(self.package, sort_keys=True, indent=4)
+                    package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                     print ("\nSending a package!\n\n")
 
                     print ("\nTERMINANDO CONEXÃO!\n") #remove later
@@ -94,26 +121,28 @@ class API_TCP_UDP():
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
 
-        #beginning connection
-        self.update_values({'destination_port': server_port,'SYN': 1})
+        object_package = Package()
 
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        #beginning connection
+        object_package.update_values({'destination_port': server_port,'SYN': 1})
+
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
 
         self.socket.sendto(package_string , (server_address, server_port))
         print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
-        if self.package['flags']['SYN'] == 1:
+        if object_package.package['flags']['SYN'] == 1:
             package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
 
-            self.package = json.loads(package_string)
+            object_package.package = json.loads(package_string)
 
-            print (self.package) #remove later
+            print (object_package.package) #remove later
 
-            self.update_values({'origin_port': self.package['destination_port'], 'destination_port': self.package['origin_port'],
+            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': object_package.package['origin_port'],
                                 'SYN': 0})
 
-            package_string = json.dumps(self.package, sort_keys=True, indent=4)
+            package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
 
             self.socket.sendto(package_string , (server_address, server_port))
@@ -121,40 +150,25 @@ class API_TCP_UDP():
 
             return (self.socket, (server_address, server_port))
 
-
-    def change_dictionary_value(self, dictionary, key_to_find, new_value):
-        for key in dictionary.keys():
-            if key == key_to_find:
-                dictionary[key] = new_value
-
-    '''
-        This function is the main point to change values in our application.
-        It receive a dic (key: value), notice that is the new value.
-    '''
-    def update_values(self, aKeys):
-        for key,val in aKeys.items():
-            if key == 'SYN' or key == 'ACK' or key == 'FIN':
-                self.change_dictionary_value(self.package['flags'], key, val)
-            else:
-                self.change_dictionary_value(self.package, key, val)
-
     def close_connection(self, connected):
         self.socket, (address, port) = connected
 
-        self.update_values({'FIN': 1})
+        object_package = Package()
 
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        object_package.update_values({'FIN': 1})
+
+        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
 
         self.socket.sendto(package_string, (address, port))
 
         package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
 
-        self.package = json.loads(package_string)
+        object_package.package = json.loads(package_string)
 
-        print (self.package) #remove later
+        print (object_package.package) #remove later
 
-        if self.package['flags']['FIN'] == 1:
+        if object_package.package['flags']['FIN'] == 1:
             print ("\nTERMINANDO CONEXÃO!\n") #remove later
             print ("\nConnection finished successfully!\n")
             self.socket.close()
@@ -164,31 +178,45 @@ class API_TCP_UDP():
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
         variavel = ''
-        aData_segmento = 0
 
         for item in aData:
-            print (item)
+            print (item) #remove later
             temp = item
-            while (len(temp)- len(variavel)) > 3: #depois trocar 3 por 1460 (MSS)
-                for aData_segmento in temp[aData_segmento:3]:
+            while (len(temp)- len(variavel)) > 10: #depois trocar 10 por 1460 (MSS)
+                for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
                     variavel += aData_segmento
                 
                 temp = temp.replace(variavel, "")  
                 self.create_package(variavel) #create segment 
                 aData_segmento = 0
                 variavel = ''
-                #break
+                #break #remove later
 
-            self.create_package(temp)
+            temp = temp.replace(variavel, "")
+            if temp is not None:
+                self.create_package(temp)
+
+            aData_segmento = 0
+            variavel = ''
 
 
     
-    def create_package(self, aData):
-        self.update_values({'ACK': 0, 'data': aData})
+    def create_package(self, aData): #temos que criar mais um parametro para controlar o numero de sequencia de cada pacote...
+        object_package = Package()
 
-        package_string = json.dumps(self.package, sort_keys=True, indent=4)
+        object_package.update_values({'ACK': 0, 'data': aData })
+
+        self._window(object_package.package)
+
+    def _window(self, package):
+        #package_string = json.dumps(self.package, sort_keys=True, indent=4)
+
+        self.window.append(package)
         
-        print (package_string)
+        print ('MINHA JANELA') #remove later
+        print (self.window) #remove later
+
+        
 
         #alimentar self.window que deverá ser nossa janela de segmentos... no caso... temos que criar uma lista de pacotes...
         #se quiser criar uma nova funcao... fica a vontade....
