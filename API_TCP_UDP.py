@@ -55,10 +55,12 @@ class API_TCP_UDP():
         #self.socket.settimeout(30)
         self.window = []
         self.MTU = 1500
-        self.start_time = current_time()
+        self.start_time = time()
         self.estimated_RTT = None
         self.dev_RTT = 0.1
         self.sampling = None
+        self.slow_start = True
+        self.quantity_segments_slow_start = 1
 
     '''
         Function for the server to listen client's commands
@@ -116,10 +118,12 @@ class API_TCP_UDP():
 
                 if object_package.package['confirmation_number'] is None:
                     object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': object_package.package['sequence_number'], 'sequence_number': random_sequence_number})
+                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])), 
+                                        'sequence_number': random_sequence_number})
                 else:
                     object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': object_package.package['sequence_number'], 'sequence_number': object_package.package['confirmation_number']})
+                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])), 
+                                        'sequence_number': object_package.package['confirmation_number']})
                 
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
                 print(object_package.package) #remove later
@@ -225,15 +229,22 @@ class API_TCP_UDP():
         if self.window is None:
             print ('\nThe window is empty. \n')
         else: 
-            while True: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
-
-
+            while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
                 if segment < len(self.window):
-                    print ("\nSending a package!\n\n")
-                    self.socket.sendto(self.window[segment] , (address, port))
-                    segment = segment + 1
+                    for i in range(self.quantity_segments_slow_start):
+                        print ("\nSending a package!\n\n")
+                        self.socket.sendto(self.window[segment] , (address, port))
+                        segment = segment + 1
                 else:
-                    break
+                    for i in range(self.quantity_segments_slow_start):
+                        package_string, (address, port) = self.socket.recvfrom(self.MTU)
+
+                        print('\n**********************************************\n') #remove later
+                        print(package_string)
+                        print('\n**********************************************\n') #remove later
+
+                    
+                    self.quantity_segments_slow_start = self.quantity_segments_slow_start * 2
 
     
     def create_package(self, aData, number_segment): 
