@@ -30,6 +30,7 @@ class Package():
         for key in dictionary.keys():
             if key == key_to_find:
                 dictionary[key] = new_value
+                break
 
     '''
         This function is the main point to change values in our application.
@@ -42,14 +43,11 @@ class Package():
             else:
                 self.change_dictionary_value(self.package, key, val)
 
-
-
 class API_TCP_UDP():
     '''
         Constructor default
     '''
     def __init__(self):
-
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
         #self.socket.settimeout(30)
@@ -77,13 +75,11 @@ class API_TCP_UDP():
                 Here starts the handshake
             '''
             package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
-
             object_package.package = json.loads(package_string)
-
             #print (object_package.package) #remove later
 
             if object_package.package['confirmation_number'] is None and object_package.package['sequence_number'] is None:
-
+                #as the context changed, swaping origin and destination, and inserting the port used by client
                 object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
                                     'ACK': 1, 'rwnd': 65535})
 
@@ -95,16 +91,11 @@ class API_TCP_UDP():
 
                 if object_package.package['flags']['ACK'] is not None:
                     package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
-
                     object_package.package = json.loads(package_string)
-
                     print (object_package.package) #remove later
 
-
             elif object_package.package['flags']['FIN'] is not None:
-
                 object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
-
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
 
@@ -114,19 +105,18 @@ class API_TCP_UDP():
                 self.socket.close()
                 break
 
-            else: 
-
+            else:
                 if object_package.package['confirmation_number'] is None:
                     object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])), 
+                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])),
                                         'sequence_number': random_sequence_number})
                 else:
                     object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])), 
+                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])),
                                         'sequence_number': object_package.package['confirmation_number']})
-                
+
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
-                print(object_package.package) #remove later
+                print(json.dumps(object_package.package, sort_keys=True, indent=4)) #remove later
                 print('\n**********************************************') #remove later
 
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
@@ -156,14 +146,12 @@ class API_TCP_UDP():
         print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
         if object_package.package['flags']['SYN'] == 1:
-            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
-
+            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client #review this comment with Juliani
             object_package.package = json.loads(package_string)
-
             print (object_package.package) #remove later
 
-            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': object_package.package['origin_port'],
-                                'SYN': 0})
+            #as the context changed, swaping origin and destination
+            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': object_package.package['origin_port'], 'SYN': 0})
 
             package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
@@ -171,7 +159,7 @@ class API_TCP_UDP():
             self.socket.sendto(package_string , (server_address, server_port))
             print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
 
-            return (self.socket, (server_address, server_port))
+            return (self.socket, (server_address, server_port)) #review the utility with Juliani...maybe
 
     def close_connection(self, connected):
         self.socket, (address, port) = connected
@@ -200,35 +188,27 @@ class API_TCP_UDP():
 
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
-        variavel = ''
         segment = 0
         number_segment = -1
 
         for item in aData:
             print (item) #remove later
             temp = item
-            while (len(temp)- len(variavel)) > 10: #depois trocar 10 por 1460 (MSS)
-                for aData_segmento in temp[0:10]: #depois trocar 10 por 1460 (MSS)
-                    variavel += aData_segmento
-                
+            while len(temp) > 10: #depois trocar 10 por 1460 (MSS)
+                variavel = temp[0:10] #depois trocar 10 por 1460 (MSS)
                 number_segment = number_segment + 1
-                temp = temp.replace(variavel, "")  
-                self.create_package(variavel, number_segment) #create segment 
-                aData_segmento = 0
-                variavel = ''
+                temp = temp.replace(variavel, "")
+                self.create_package(variavel, number_segment) #create segment
                 #break #remove later
 
-            temp = temp.replace(variavel, "")
             if temp is not None:
                 number_segment = number_segment + 1
                 self.create_package(temp, number_segment)
 
-            aData_segmento = 0
-            variavel = ''
-
+        #verify if window is empty
         if self.window is None:
             print ('\nThe window is empty. \n')
-        else: 
+        else:
             while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
                 if segment < len(self.window):
                     for i in range(self.quantity_segments_slow_start):
@@ -243,27 +223,24 @@ class API_TCP_UDP():
                         print(package_string)
                         print('\n**********************************************\n') #remove later
 
-                    
-                    self.quantity_segments_slow_start = self.quantity_segments_slow_start * 2
 
-    
-    def create_package(self, aData, number_segment): 
+                    self.quantity_segments_slow_start = self.quantity_segments_slow_start * 2 #this didn't supose to be in the if block? or while block?
+
+    def create_package(self, aData, number_segment):
         object_package = Package()
 
         object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
-
         self._window(package_string)
 
     def _window(self, package):
 
         self.window.append(package)
-        
-        print ('MINHA JANELA') #remove later
-        print (self.window) #remove later
 
-        
+        print ('MINHA JANELA') #remove later
+        for a in self.window: #remove later
+            print (a) #remove later
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
