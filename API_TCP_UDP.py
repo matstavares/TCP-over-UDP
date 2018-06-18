@@ -76,36 +76,33 @@ class API_TCP_UDP():
             object_package.package = json.loads(package_string)
             #print (object_package.package) #remove later
 
+            #as the context changed, swaping origin and destination, and inserting the port used by client
+            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
+
             if object_package.package['confirmation_number'] is None and object_package.package['sequence_number'] is None:
-                #as the context changed, swaping origin and destination, and inserting the port used by client
-                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                    'ACK': 1, 'rwnd': 65535})
+                object_package.update_values({'ACK': 1, 'rwnd': 65535})
 
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
-
-                self.socket.sendto(package_string , (client_address, client_port))
+                self.socket.sendto(package_string, (client_address, client_port))
                 print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
 
-                if object_package.package['flags']['ACK'] is not None:
-                    package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
-                    object_package.package = json.loads(package_string)
-                    print (object_package.package) #remove later
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
+                object_package.package = json.loads(package_string)
+                print (object_package.package) #remove later
 
             elif object_package.package['flags']['FIN'] is not None:
-                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port})
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
 
                 print ("\nTERMINANDO CONEXÃO!\n") #remove later
                 self.socket.sendto(package_string , (client_address, client_port))
-                print ("\nConnection finished successfully!\n")
                 self.socket.close()
+                print ("\nConnection finished successfully!\n")
                 break
 
             else:
-                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+                object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
 
                 self.last_ack =  object_package.package['confirmation_number']
 
@@ -127,7 +124,6 @@ class API_TCP_UDP():
     def connection(self, server_address, server_port):
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
-
         object_package = Package()
 
         #beginning connection
@@ -135,7 +131,6 @@ class API_TCP_UDP():
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
-
         self.socket.sendto(package_string , (server_address, server_port))
         print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
@@ -149,36 +144,31 @@ class API_TCP_UDP():
 
             package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
-
             self.socket.sendto(package_string , (server_address, server_port))
             print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
 
             return (self.socket, (server_address, server_port)) #review the utility with Juliani...maybe
+        else:
+            print("The server is not prepared to start a connection")
 
     def close_connection(self, connected):
         self.socket, (address, port) = connected
-
         object_package = Package()
 
         object_package.update_values({'FIN': 1})
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
-
         self.socket.sendto(package_string, (address, port))
 
         package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
-
         object_package.package = json.loads(package_string)
 
-        print (object_package.package) #remove later
-
         if object_package.package['flags']['FIN'] == 1:
-            print ("\nTERMINANDO CONEXÃO!\n") #remove later
             print ("\nConnection finished successfully!\n")
-            self.socket.close()
         else:
-            print ("\nSomething is wrong. The connection was not closed.\n")
+            print ("\nSomething is wrong. The connection was not closed on the server.\n")
+        self.socket.close()
 
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
@@ -206,7 +196,7 @@ class API_TCP_UDP():
                     for i in range(self.cwnd):
                         print ("\nSending a package!\n\n")
                         self.socket.sendto(self.window[segment] , (address, port))
-                        self.RTT = time()
+                        self.RTT = time() #shouldnt be a rtt for each package/segment?
                         segment = segment + 1
                 else:
                     for i in range(self.cwnd):
@@ -216,16 +206,14 @@ class API_TCP_UDP():
                         print(package_string)
                         print('\n**********************************************\n') #remove later
 
-
                     self.cwnd = self.cwnd * 2 #this didn't supose to be in the if block? or while block?
 
     def create_package(self, aData, port):
-        object_package = Package() 
-        
+        object_package = Package()
+
         self.last_seq =  self.getting_sequence_number()
 
-        object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData,
-                                        'destination_port': port })
+        object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData, 'destination_port': port })
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         self._window(package_string)
@@ -234,14 +222,14 @@ class API_TCP_UDP():
 
         self.window.append(package)
 
-        print ('MINHA JANELA') #remove later
-        for a in self.window: #remove later
-            print (a) #remove later
+        #print ('MINHA JANELA') #remove later
+        #for a in self.window: #remove later
+            #print (a) #remove later
 
     def getting_sequence_number(self):
         seq = 0
 
-        if len(self.window) > 0:        
+        if len(self.window) > 0:
             package = json.loads(self.window[-1])
             seq = package['sequence_number'] + len(package['data'])
 
