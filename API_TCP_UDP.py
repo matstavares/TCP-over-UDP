@@ -53,12 +53,11 @@ class API_TCP_UDP():
         #self.socket.settimeout(30)
         self.window = []
         self.MTU = 1500
-        self.start_time = time()
-        self.estimated_RTT = None
-        self.dev_RTT = 0.1
-        self.sampling = None
         self.slow_start = True
-        self.quantity_segments_slow_start = 1
+        self.cwnd = 1
+        self.last_seq = 0
+        self.last_ack = None
+        self.RTT = None
 
     '''
         Function for the server to listen client's commands
@@ -66,7 +65,6 @@ class API_TCP_UDP():
     def server_listening(self, server_address, server_port):
         self.socket.bind((server_address, server_port))
         print ("\n****** The server is ready! ******\n")
-        random_sequence_number = random.randint(0,100)
 
         object_package = Package()
 
@@ -106,14 +104,10 @@ class API_TCP_UDP():
                 break
 
             else:
-                if object_package.package['confirmation_number'] is None:
-                    object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])),
-                                        'sequence_number': random_sequence_number})
-                else:
-                    object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
-                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data'])),
-                                        'sequence_number': object_package.package['confirmation_number']})
+                object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': client_port,
+                                        'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+
+                self.last_ack =  object_package.package['confirmation_number']
 
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
                 print(json.dumps(object_package.package, sort_keys=True, indent=4)) #remove later
@@ -211,12 +205,13 @@ class API_TCP_UDP():
         else:
             while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
                 if segment < len(self.window):
-                    for i in range(self.quantity_segments_slow_start):
+                    for i in range(self.cwnd):
                         print ("\nSending a package!\n\n")
                         self.socket.sendto(self.window[segment] , (address, port))
+                        self.RTT = time()
                         segment = segment + 1
                 else:
-                    for i in range(self.quantity_segments_slow_start):
+                    for i in range(self.cwnd):
                         package_string, (address, port) = self.socket.recvfrom(self.MTU)
 
                         print('\n**********************************************\n') #remove later
@@ -224,12 +219,14 @@ class API_TCP_UDP():
                         print('\n**********************************************\n') #remove later
 
 
-                    self.quantity_segments_slow_start = self.quantity_segments_slow_start * 2 #this didn't supose to be in the if block? or while block?
+                    self.cwnd = self.cwnd * 2 #this didn't supose to be in the if block? or while block?
 
     def create_package(self, aData, number_segment):
-        object_package = Package()
+        object_package = Package() 
+        if number_segment != 0:
+            self.last_seq =  self.last_seq + len(aData) #AQUI TA ERRADO AINDA ... o numero de sequencia deve ser o SEQ + LEN(DATA) do pacote passado...
 
-        object_package.update_values({'ACK': 0, 'sequence_number': (number_segment * 1460), 'data': aData })
+        object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData })
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         self._window(package_string)
