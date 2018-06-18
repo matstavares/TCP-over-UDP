@@ -223,8 +223,8 @@ class API_TCP_UDP():
 
     def create_package(self, aData, number_segment):
         object_package = Package() 
-        if number_segment != 0:
-            self.last_seq =  self.last_seq + len(aData) #AQUI TA ERRADO AINDA ... o numero de sequencia deve ser o SEQ + LEN(DATA) do pacote passado...
+        
+        self.last_seq =  self.getting_sequence_number()
 
         object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData })
 
@@ -238,6 +238,15 @@ class API_TCP_UDP():
         print ('MINHA JANELA') #remove later
         for a in self.window: #remove later
             print (a) #remove later
+
+    def getting_sequence_number(self):
+        seq = 0
+
+        if len(self.window) > 0:        
+            package = json.loads(self.window[-1])
+            seq = package['sequence_number'] + len(package['data'])
+
+        return seq
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
