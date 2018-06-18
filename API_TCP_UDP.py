@@ -190,14 +190,12 @@ class API_TCP_UDP():
             temp = item
             while len(temp) > 10: #depois trocar 10 por 1460 (MSS)
                 variavel = temp[0:10] #depois trocar 10 por 1460 (MSS)
-                number_segment = number_segment + 1
                 temp = temp.replace(variavel, "")
-                self.create_package(variavel, number_segment) #create segment
+                self.create_package(variavel, port) #create segment
                 #break #remove later
 
             if temp is not None:
-                number_segment = number_segment + 1
-                self.create_package(temp, number_segment)
+                self.create_package(temp, port)
 
         #verify if window is empty
         if self.window is None:
@@ -221,12 +219,13 @@ class API_TCP_UDP():
 
                     self.cwnd = self.cwnd * 2 #this didn't supose to be in the if block? or while block?
 
-    def create_package(self, aData, number_segment):
+    def create_package(self, aData, port):
         object_package = Package() 
         
         self.last_seq =  self.getting_sequence_number()
 
-        object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData })
+        object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData,
+                                        'destination_port': port })
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         self._window(package_string)
