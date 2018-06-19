@@ -103,7 +103,9 @@ class API_TCP_UDP():
                 break
 
             else:
-                object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+                self.last_seq =  self.getting_sequence_number()
+
+                object_package.update_values({'sequence_number': self.last_seq,'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
 
                 self._window(object_package.package)
 
@@ -180,6 +182,7 @@ class API_TCP_UDP():
         object_package = Package()
         segment = 0
         number_segment = -1
+        i = 0
 
         for item in aData:
             print (item) #remove later
@@ -200,7 +203,7 @@ class API_TCP_UDP():
             while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
                 if segment < len(self.window):
                     for i in range(self.cwnd):
-                        object_package.package = json.loads(self.window[segment])
+                        object_package.package = self.window[segment]
                         object_package.update_values({'RTT': time.time()})
                         self.window[segment] = json.dumps(object_package.package, sort_keys=True, indent=4)
                         print ("\nSending a package!\n\n")
@@ -209,6 +212,15 @@ class API_TCP_UDP():
                 else:
                     for i in range(self.cwnd):
                         package_string, (address, port) = self.socket.recvfrom(self.MTU)
+
+                        package_string = json.loads(package_string)
+                        for i, elemento in map(None, range(len(self.window)), self.window):
+                            elemento = json.loads(self.window[i])
+                            if package_string['confirmation_number'] == elemento['sequence_number']:
+                                if i+1 < len(self.window):
+                                    elemento = json.loads(self.window[i+1])
+                                    elemento['confirmation_number'] = (package_string['sequence_number'] + len(package_string['data']))
+                                    self.window[i+1] = json.dumps(elemento, sort_keys=True, indent=4)
 
                         print('\n**********************************************\n') #remove later
                         print(package_string)
@@ -223,8 +235,7 @@ class API_TCP_UDP():
 
         object_package.update_values({'ACK': 0, 'sequence_number': self.last_seq, 'data': aData, 'destination_port': port })
 
-        package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
-        self._window(package_string)
+        self._window(object_package.package)
 
     def _window(self, package):
 
@@ -238,7 +249,8 @@ class API_TCP_UDP():
         seq = 0
 
         if len(self.window) > 0:
-            package = json.loads(self.window[-1])
+            package = self.window[-1]
+                
             seq = package['sequence_number'] + len(package['data'])
 
         return seq
