@@ -8,7 +8,7 @@ Description: This file contain functions developed to use in UDP connections.
 from socket import *
 import random
 import json
-from time import time
+import time
 
 class Package():
     '''
@@ -25,6 +25,7 @@ class Package():
         self.package['flags'] = { 'ACK': None, 'SYN': None, 'FIN': None }  #dictionary (it's look like a json ['key': value])
         self.package['data'] = ""
         self.package['rwnd'] = None #receiver window
+        self.package['RTT'] = ''
 
     def change_dictionary_value(self, dictionary, key_to_find, new_value):
         for key in dictionary.keys():
@@ -103,7 +104,7 @@ class API_TCP_UDP():
 
             else:
                 object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
-                
+
                 self._window(object_package.package)
 
                 self.last_ack =  self.getting_last_ack()
@@ -176,6 +177,7 @@ class API_TCP_UDP():
 
     def send_data(self, aData, connected):
         self.socket, (address, port) = connected
+        object_package = Package()
         segment = 0
         number_segment = -1
 
@@ -198,6 +200,9 @@ class API_TCP_UDP():
             while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
                 if segment < len(self.window):
                     for i in range(self.cwnd):
+                        object_package.package = json.loads(self.window[segment])
+                        object_package.update_values({'RTT': time.time()})
+                        self.window[segment] = json.dumps(object_package.package, sort_keys=True, indent=4)
                         print ("\nSending a package!\n\n")
                         self.socket.sendto(self.window[segment] , (address, port))
                         segment = segment + 1
