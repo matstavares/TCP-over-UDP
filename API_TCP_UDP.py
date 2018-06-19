@@ -58,7 +58,8 @@ class API_TCP_UDP():
         self.cwnd = 1
         self.last_seq = 0
         self.last_ack = None
-        self.RTT = None
+        self.duploAck = False
+        self.triploAck = False
 
     '''
         Function for the server to listen client's commands
@@ -182,19 +183,12 @@ class API_TCP_UDP():
         object_package = Package()
         segment = 0
         number_segment = -1
+        self.last_ack = None
+        self.duploAck = False
+        self.triploAck = False
         i = 0
 
-        for item in aData:
-            print (item) #remove later
-            temp = item
-            while len(temp) > 10: #depois trocar 10 por 1460 (MSS)
-                variavel = temp[0:10] #depois trocar 10 por 1460 (MSS)
-                temp = temp.replace(variavel, "")
-                self.create_package(variavel, port) #create segment
-                #break #remove later
-
-            if temp is not None:
-                self.create_package(temp, port)
+        self.break_in_segments(aData, port)
 
         #verify if window is empty
         if self.window is None:
@@ -212,14 +206,16 @@ class API_TCP_UDP():
                 else:
                     for i in range(self.cwnd):
                         package_string, (address, port) = self.socket.recvfrom(self.MTU)
+                        object_package.package = json.loads(package_string)
 
-                        package_string = json.loads(package_string)
+                        self.verifyTripleAck(object_package)
+
                         for i, elemento in map(None, range(len(self.window)), self.window):
                             elemento = json.loads(self.window[i])
-                            if package_string['confirmation_number'] == elemento['sequence_number']:
+                            if object_package['confirmation_number'] == elemento['sequence_number']:
                                 if i+1 < len(self.window):
                                     elemento = json.loads(self.window[i+1])
-                                    elemento['confirmation_number'] = (package_string['sequence_number'] + len(package_string['data']))
+                                    elemento['confirmation_number'] = (object_package['sequence_number'] + len(object_package['data']))
                                     self.window[i+1] = json.dumps(elemento, sort_keys=True, indent=4)
 
                         print('\n**********************************************\n') #remove later
@@ -245,12 +241,51 @@ class API_TCP_UDP():
         #for a in self.window: #remove later
             #print (a) #remove later
 
+    def break_in_segments(self, aData, port):
+        for item in aData:
+            print (item) #remove later
+            temp = item
+            while len(temp) > 10: #depois trocar 10 por 1460 (MSS)
+                variavel = temp[0:10] #depois trocar 10 por 1460 (MSS)
+                temp = temp.replace(variavel, "")
+                self.create_package(variavel, port) #create segment
+                #break #remove later
+
+            if temp is not None:
+                self.create_package(temp, port)
+
+    def verifyTripleAck(self, object_package):
+        if self.last_ack is None:
+            self.last_ack = object_package.package['confirmation_number']
+        elif self.last_ack == object_package.package['confirmation_number']:
+            if duploAck:
+                triploAck = True
+
+                retrived_package = self.search_package(object_package.package['confirmation_number'])
+
+                ''' Re-send the ackwnoledge package? if cwnd is low? '''
+                self.socket.sendto(json.dumps(retrived_package), sort_keys=True, indent=4)
+
+                triploAck = False
+                duploAck = False
+            else:
+                duploAck = True
+        else:
+            self.last_ack = object_package.package['confirmation_number']
+            self.duploAck = False
+
+    def search_package(self, num_seq):
+        for i in range(self.window):
+            if num_seq == i['sequence_number']:
+                return i
+        print ('Package not found within the window. sequence_number: ' + num_seq)
+        exit(1)
+
     def getting_sequence_number(self):
         seq = 0
 
         if len(self.window) > 0:
             package = self.window[-1]
-                
             seq = package['sequence_number'] + len(package['data'])
 
         return seq
