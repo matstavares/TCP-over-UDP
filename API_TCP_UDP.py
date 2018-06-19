@@ -103,8 +103,12 @@ class API_TCP_UDP():
 
             else:
                 object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+                
+                self._window(object_package.package)
 
-                self.last_ack =  object_package.package['confirmation_number']
+                self.last_ack =  self.getting_last_ack()
+
+                self.verify_next_package_sequence(self.last_ack)
 
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
                 print(json.dumps(object_package.package, sort_keys=True, indent=4)) #remove later
@@ -196,7 +200,6 @@ class API_TCP_UDP():
                     for i in range(self.cwnd):
                         print ("\nSending a package!\n\n")
                         self.socket.sendto(self.window[segment] , (address, port))
-                        self.RTT = time() #shouldnt be a rtt for each package/segment?
                         segment = segment + 1
                 else:
                     for i in range(self.cwnd):
@@ -234,6 +237,25 @@ class API_TCP_UDP():
             seq = package['sequence_number'] + len(package['data'])
 
         return seq
+
+    def getting_last_ack(self):
+        ack = self.window[-1]['confirmation_number']
+
+        if len(self.window) > 1:
+            package = self.window[-2]
+            ack = package['confirmation_number']
+
+        return ack
+
+    def verify_next_package_sequence(self, last_ack):
+        if len(self.window) > 1:
+            package = self.window[-1]
+            if package['sequence_number'] != last_ack:
+                print('Something is wrong... Last ACK is ', last_ack, 'and Sequence Number received was ', package['sequence_number'])
+            else:
+                print('OK....')
+        else:
+            print('The first ACK received ', last_ack)
 
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
