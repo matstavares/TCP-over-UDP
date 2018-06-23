@@ -210,14 +210,6 @@ class API_TCP_UDP():
 
                         self.verifyTripleAck(object_package)
 
-                        for i, elemento in map(None, range(len(self.window)), self.window):
-                            elemento = json.loads(self.window[i])
-                            if object_package['confirmation_number'] == elemento['sequence_number']:
-                                if i+1 < len(self.window):
-                                    elemento = json.loads(self.window[i+1])
-                                    elemento['confirmation_number'] = (object_package['sequence_number'] + len(object_package['data']))
-                                    self.window[i+1] = json.dumps(elemento, sort_keys=True, indent=4)
-
                         print('\n**********************************************\n') #remove later
                         print(package_string)
                         print('\n**********************************************\n') #remove later
