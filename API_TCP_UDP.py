@@ -237,8 +237,8 @@ class API_TCP_UDP():
         for item in aData:
             print (item) #remove later
             temp = item
-            while len(temp) > 10: #depois trocar 10 por 1460 (MSS)
-                variavel = temp[0:10] #depois trocar 10 por 1460 (MSS)
+            while len(temp) > 1460: #depois trocar 10 por 1460 (MSS)
+                variavel = temp[0:1460] #depois trocar 10 por 1460 (MSS)
                 temp = temp.replace(variavel, "")
                 self.create_package(variavel, port) #create segment
                 #break #remove later
