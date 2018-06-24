@@ -53,6 +53,7 @@ class API_TCP_UDP():
         self.socket = socket(AF_INET, SOCK_DGRAM)
         #self.socket.settimeout(30)
         self.window = []
+        self.MSS = 1193
         self.MTU = 1500
         self.slow_start = True
         self.cwnd = 1
@@ -104,6 +105,8 @@ class API_TCP_UDP():
                 break
 
             else:
+                print('tamanho pacote: '+str(len(package_string))) #remove later
+                print('tamanho dados: '+str(len(object_package.package['data']))) #remove later
                 self.last_seq =  self.getting_sequence_number()
 
                 object_package.update_values({'sequence_number': self.last_seq,'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
@@ -115,7 +118,7 @@ class API_TCP_UDP():
                 self.verify_next_package_sequence(self.last_ack)
 
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
-                print(json.dumps(object_package.package, sort_keys=True, indent=4)) #remove later
+                print(json.dumps(object_package.package, sort_keys=True, indent=4))
                 print('\n**********************************************') #remove later
 
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
@@ -143,19 +146,21 @@ class API_TCP_UDP():
         print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
         if object_package.package['flags']['SYN'] == 1:
-            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client #review this comment with Juliani
+            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
             object_package.package = json.loads(package_string)
             print (object_package.package) #remove later
 
             #as the context changed, swaping origin and destination
-            object_package.update_values({'origin_port': object_package.package['destination_port'], 'destination_port': object_package.package['origin_port'], 'SYN': 0})
+            object_package.update_values({'origin_port': object_package.package['destination_port'],
+                                          'destination_port': object_package.package['origin_port'],
+                                          'SYN': 0})
 
             package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
             self.socket.sendto(package_string , (server_address, server_port))
             print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
 
-            return (self.socket, (server_address, server_port)) #review the utility with Juliani...maybe
+            return (self.socket, (server_address, server_port))
         else:
             print("The server is not prepared to start a connection")
 
@@ -211,10 +216,12 @@ class API_TCP_UDP():
                         self.verifyTripleAck(object_package)
 
                         print('\n**********************************************\n') #remove later
+                        print('tamanho pacote: '+str(len(package_string)))
+                        print('tamanho dados: '+str(len(object_package.package['data'])))
                         print(package_string)
                         print('\n**********************************************\n') #remove later
 
-                    self.cwnd = self.cwnd * 2 #this didn't supose to be in the if block? or while block?
+                    self.cwnd = self.cwnd * 2
 
     def create_package(self, aData, port):
         object_package = Package()
@@ -237,11 +244,10 @@ class API_TCP_UDP():
         for item in aData:
             print (item) #remove later
             temp = item
-            while len(temp) > 1460: #depois trocar 10 por 1460 (MSS)
-                variavel = temp[0:1460] #depois trocar 10 por 1460 (MSS)
+            while len(temp) > self.MSS:
+                variavel = temp[0:self.MSS]
                 temp = temp.replace(variavel, "")
                 self.create_package(variavel, port) #create segment
-                #break #remove later
 
             if temp is not None:
                 self.create_package(temp, port)
