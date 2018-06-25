@@ -50,11 +50,12 @@ class API_TCP_UDP():
     def __init__(self):
         # General attributes
         self.socket = socket(AF_INET, SOCK_DGRAM)
-        #self.socket.settimeout(30)
+        # self.socket.settimeout(30)
         self.window = []
-        self.RTT = {}
-        self.MSS = 1224
-        self.MTU = 1500
+        self.toRTT = {} #time-out of RTT
+        self.timeout = 2
+        self.MSS = 1204
+        self.MTU = 1480 #udp header
         self.slow_start = True
         self.cwnd = 1
         self.last_seq = 0
@@ -122,16 +123,20 @@ class API_TCP_UDP():
             else:
                 print('tamanho pacote: '+str(len(package_string))) #remove later
                 print('tamanho dados: '+str(len(object_package.package['data']))) #remove later
-                self.last_seq =  self.getting_sequence_number()
 
-                object_package.update_values({'sequence_number': self.last_seq,'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+                object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
+
+                self.last_seq = self.getting_sequence_number()
 
                 self._window(object_package.package)
 
-                self.verifyTripleAck(object_package)
+                self.verifyTripleAck(object_package, (client_address, client_port))
 
                 self.last_ack =  self.getting_last_ack()
-                self.verify_next_package_sequence(self.last_ack)
+
+                if not self.verify_next_package_sequence(self.last_ack):
+                    self.toRTT[self.last_ack] = time.time()
+                    self.socket.sendto(package_string , (client_address, client_port))
 
                 print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
                 print(json.dumps(object_package.package, sort_keys=True, indent=4))
@@ -140,7 +145,7 @@ class API_TCP_UDP():
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
 
-                self.RTT[object_package.package['sequence_number']] = time.time()
+                self.toRTT[object_package.package['sequence_number']] = time.time()
                 self.socket.sendto(package_string , (client_address, client_port))
 
                 print ('MINHA JANELA')#remove later
@@ -156,6 +161,7 @@ class API_TCP_UDP():
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
         object_package = Package()
+        self.socket.settimeout(0.5)
 
         #beginning connection
         object_package.update_values({'destination_port': server_port,'SYN': 1})
@@ -211,7 +217,6 @@ class API_TCP_UDP():
         self.last_ack = None
         self.duploAck = False
         self.triploAck = False
-        i = 0
 
         self.break_in_segments(aData, port)
 
@@ -219,12 +224,13 @@ class API_TCP_UDP():
         if self.window is None:
             print ('\nThe window is empty. \n')
         else:
-            while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START. PRECISA IMPLEMENTAR O RECEBIMENTO DAS RESPOSTAS DO SERVER...
+            while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START.
+                self.verifyRTT((address, port))
                 if segment < len(self.window):
                     for i in range(self.cwnd):
                         object_package.package = self.window[segment]
 
-                        self.RTT[object_package.package['sequence_number']] = time.time()
+                        self.toRTT[object_package.package['sequence_number']] = time.time()
 
                         object_package.update_values({'length_header':
                         len(json.dumps(object_package.package, sort_keys=True, indent=4)) -
@@ -239,21 +245,28 @@ class API_TCP_UDP():
                         segment = segment + 1
                 else:
                     for i in range(self.cwnd):
-                        package_string, (address, port) = self.socket.recvfrom(self.MTU)
+                        try:
+                            package_string, (address, port) = self.socket.recvfrom(self.MTU)
+                        except:
+                            #check RTT
+                            continue
                         object_package.package = json.loads(package_string)
 
-                        self.verifyTripleAck(object_package)
+                        self.removeKey(object_package.package['sequence_number'])
+
+                        self.verifyTripleAck(object_package, (address, port))
 
                         print('\n**********************************************\n') #remove later
                         print('tamanho pacote: '+str(len(package_string)))
                         print('tamanho dados: '+str(len(object_package.package['data'])))
                         print(package_string)
-                        print ('MINHA JANELA')#remove later
-                        for a in self.window: #remove later
-                            print (a) #remove later
+                        #print ('MINHA JANELA')#remove later
+                        #for a in self.window: #remove later
+                        #    print (a) #remove later
                         print('\n**********************************************\n') #remove later
 
                     self.cwnd = self.cwnd * 2
+
 
     def create_package(self, aData, port):
         object_package = Package()
@@ -279,31 +292,44 @@ class API_TCP_UDP():
             if temp is not None:
                 self.create_package(temp, port)
 
-    def verifyTripleAck(self, object_package):
+    def verifyTripleAck(self, object_package, address):
         if self.last_ack is None:
-            self.last_ack = object_package.package['sequence_number']
-        elif self.last_ack == object_package.package['sequence_number']:
+            self.last_ack = object_package.package['confirmation_number']
+        elif self.last_ack == object_package.package['confirmation_number']:
             if self.duploAck:
                 self.triploAck = True
 
-                retrived_package = self.search_package(object_package.package['sequence_number'])
+                retrived_package = self.search_package(object_package.package['confirmation_number'])
 
                 ''' Re-send the ackwnoledge package? if cwnd is low? '''
-                self.socket.sendto(json.dumps(retrived_package), sort_keys=True, indent=4)
+                self.socket.sendto(json.dumps(retrived_package, sort_keys=True, indent=4), address)
 
             else:
                 self.duploAck = True
         else:
-            self.last_ack = object_package.package['sequence_number']
+            self.last_ack = object_package.package['confirmation_number']
             self.duploAck = False
             self.triploAck = False
 
     def search_package(self, num_seq):
         for i in self.window:
-            if num_seq == i['sequence_number']:
-                return i
-        print ('Package not found within the window. sequence_number: ' + num_seq)
+            j = (json.loads(i))
+            if int(num_seq) == j['sequence_number']:
+                return j
+        print ('Package not found within the window. sequence_number: ' + str(num_seq))
         exit(1)
+
+    def verifyRTT(self, address):
+        object_package = Package()
+        if len(self.toRTT) > 0:
+            for a in self.toRTT:
+                if time.time() - self.toRTT[int(a)] > self.timeout:
+                    self.toRTT[a] = time.time()
+                    self.socket.sendto(json.dumps(self.search_package(a), sort_keys=True, indent=4), address)
+
+    def removeKey(self,sequence_number):
+        if sequence_number in self.toRTT:
+            self.toRTT.pop(sequence_number)
 
     def getting_sequence_number(self):
         seq = 0
@@ -328,11 +354,13 @@ class API_TCP_UDP():
             package = self.window[-1]
             if package['sequence_number'] != last_ack:
                 print('Something is wrong... Last ACK is ', last_ack, 'and Sequence Number received was ', package['sequence_number'])
+                return False
             else:
                 print('OK....')
+                return True
         else:
             print('The first ACK received ', last_ack)
-
+            return True
         '''
             Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
             Ultrapassando... deverá ser segmentado os dados... dai que entram os pacotes e a janela...
