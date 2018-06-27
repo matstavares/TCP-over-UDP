@@ -53,9 +53,11 @@ class API_TCP_UDP():
         # self.socket.settimeout(30)
         self.window = []
         self.toRTT = {} #time-out of RTT
-        self.timeout = 2
+        self.sampleRTT = 0
+        self.timeout = 0.5
         self.MSS = 1204
         self.MTU = 1480 #udp header
+        self.buffer = 4096
         self.slow_start = True
         self.cwnd = 1
         self.last_seq = 0
@@ -79,9 +81,9 @@ class API_TCP_UDP():
             '''
             if test: #remove later
                 test = False
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #first touch between server and client
             else:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #first touch between server and client
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #first touch between server and client
                 if testao:
                     testao = False
                 else:
@@ -104,9 +106,8 @@ class API_TCP_UDP():
 
                 print ("\nSending a package!\n\n")
                 self.socket.sendto(package_string, (client_address, client_port))
-                print ("SEGUNDA VIA CONEXÃO!\n\n") #remove later
 
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.MTU) #third touch between server and client
+                package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #third touch between server and client
                 object_package.package = json.loads(package_string)
                 print (object_package.package) #remove later
 
@@ -114,7 +115,6 @@ class API_TCP_UDP():
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
 
-                print ("\nTERMINANDO CONEXÃO!\n") #remove later
                 self.socket.sendto(package_string , (client_address, client_port))
                 self.socket.close()
                 print ("\nConnection finished successfully!\n")
@@ -161,20 +161,20 @@ class API_TCP_UDP():
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
         object_package = Package()
-        self.socket.settimeout(0.5)
+        self.socket.settimeout(0.1)
 
         #beginning connection
-        object_package.update_values({'destination_port': server_port,'SYN': 1})
+        object_package.update_values({'destination_port': server_port,'SYN': 1, 'sequence_number': 0})
 
         package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
         print ("\nSending a package!\n\n")
+        RTT = time.time()
         self.socket.sendto(package_string , (server_address, server_port))
-        print ("PRIMEIRA VIA CONEXÃO!\n\n") #remove later
 
         if object_package.package['flags']['SYN'] == 1:
-            package_string, address = self.socket.recvfrom(self.MTU) #second touch between server and client
+            package_string, address = self.socket.recvfrom(self.buffer) #second touch between server and client
+            self.sampleRTT = RTT - time.time()
             object_package.package = json.loads(package_string)
-            print (object_package.package) #remove later
 
             #as the context changed, swaping origin and destination
             object_package.update_values({'origin_port': object_package.package['destination_port'],
@@ -184,7 +184,6 @@ class API_TCP_UDP():
             package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
             print ("\nSending a package!\n\n")
             self.socket.sendto(package_string , (server_address, server_port))
-            print ("TERCEIRA VIA CONEXÃO!\n\n") #remove later
 
             return (self.socket, (server_address, server_port))
         else:
@@ -200,7 +199,7 @@ class API_TCP_UDP():
         print ("\nSending a package!\n\n")
         self.socket.sendto(package_string, (address, port))
 
-        package_string, (address, port) = self.socket.recvfrom(self.MTU) #second touch between server and client
+        package_string, (address, port) = self.socket.recvfrom(self.buffer) #second touch between server and client
         object_package.package = json.loads(package_string)
 
         if object_package.package['flags']['FIN'] == 1:
@@ -246,13 +245,15 @@ class API_TCP_UDP():
                 else:
                     for i in range(self.cwnd):
                         try:
-                            package_string, (address, port) = self.socket.recvfrom(self.MTU)
+                            package_string, (address, port) = self.socket.recvfrom(self.buffer)
                         except:
-                            #check RTT
+                            if not self.toRTT:
+                                break
+                            #check RTT timeout
                             continue
                         object_package.package = json.loads(package_string)
 
-                        self.removeKey(object_package.package['sequence_number'])
+                        self.removeRTT(object_package.package['sequence_number'])
 
                         self.verifyTripleAck(object_package, (address, port))
 
@@ -260,9 +261,9 @@ class API_TCP_UDP():
                         print('tamanho pacote: '+str(len(package_string)))
                         print('tamanho dados: '+str(len(object_package.package['data'])))
                         print(package_string)
-                        #print ('MINHA JANELA')#remove later
-                        #for a in self.window: #remove later
-                        #    print (a) #remove later
+                        print ('MINHA JANELA')#remove later
+                        for a in self.window: #remove later
+                            print (a) #remove later
                         print('\n**********************************************\n') #remove later
 
                     self.cwnd = self.cwnd * 2
@@ -282,7 +283,6 @@ class API_TCP_UDP():
 
     def break_in_segments(self, aData, port):
         for item in aData:
-            print (item) #remove later
             temp = item
             while len(temp) > self.MSS:
                 variavel = temp[0:self.MSS]
@@ -317,19 +317,22 @@ class API_TCP_UDP():
             if int(num_seq) == j['sequence_number']:
                 return j
         print ('Package not found within the window. sequence_number: ' + str(num_seq))
-        exit(1)
+        return 0
 
     def verifyRTT(self, address):
-        object_package = Package()
         if len(self.toRTT) > 0:
             for a in self.toRTT:
-                if time.time() - self.toRTT[int(a)] > self.timeout:
+                if time.time() - self.toRTT[int(a)] > self.timeout + self.sampleRTT:
                     self.toRTT[a] = time.time()
                     self.socket.sendto(json.dumps(self.search_package(a), sort_keys=True, indent=4), address)
 
-    def removeKey(self,sequence_number):
-        if sequence_number in self.toRTT:
-            self.toRTT.pop(sequence_number)
+    def removeRTT(self,sequence_number):
+        dict = self.toRTT.copy()
+        print (self.toRTT)
+        for i in self.toRTT:
+            if sequence_number >= i:
+                dict.pop(i)
+        self.toRTT = dict
 
     def getting_sequence_number(self):
         seq = 0
