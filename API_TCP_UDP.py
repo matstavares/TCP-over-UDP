@@ -104,7 +104,7 @@ class API_TCP_UDP():
                 self.socket.sendto(package_string , (client_address, client_port))
                 self.socket.close()
                 print ("\nConnection finished successfully!\n")
-                break
+                exit(0)
             else:
                 object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
 
@@ -274,7 +274,10 @@ class API_TCP_UDP():
 
     def search_package(self, num_seq):
         for i in self.window:
-            j = (json.loads(i))
+            try:
+                j = (json.loads(i))
+            except:
+                j = i
             if int(num_seq) == j['sequence_number']:
                 return j
         print ('Package not found within the window. sequence_number: ' + str(num_seq))
