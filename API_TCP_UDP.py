@@ -54,9 +54,8 @@ class API_TCP_UDP():
         self.window = []
         self.toRTT = {} #time-out of RTT
         self.sampleRTT = 0
-        self.timeout = 0.5
+        self.timeout = 1
         self.MSS = 1204
-        self.MTU = 1480 #udp header
         self.buffer = 4096
         self.slow_start = True
         self.cwnd = 1
@@ -71,25 +70,13 @@ class API_TCP_UDP():
     def server_listening(self, server_address, server_port):
         self.socket.bind((server_address, server_port))
         print ("\n****** The server is ready! ******\n")
-        test = True #remove later
-        testao = True #remove later
         object_package = Package()
 
         while True:
             '''
                 Here starts the handshake
             '''
-            if test: #remove later
-                test = False
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #first touch between server and client
-            else:
-                package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #first touch between server and client
-                if testao:
-                    testao = False
-                else:
-                    testao = True
-                    test = True
-                    continue
+            package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #first touch between server and client
             object_package.package = json.loads(package_string)
 
             #as the context changed, swaping origin and destination, and inserting the port used by client
@@ -109,7 +96,6 @@ class API_TCP_UDP():
 
                 package_string, (client_address, client_port) = self.socket.recvfrom(self.buffer) #third touch between server and client
                 object_package.package = json.loads(package_string)
-                print (object_package.package) #remove later
 
             elif object_package.package['flags']['FIN'] is not None:
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
@@ -119,28 +105,20 @@ class API_TCP_UDP():
                 self.socket.close()
                 print ("\nConnection finished successfully!\n")
                 break
-
             else:
-                print('tamanho pacote: '+str(len(package_string))) #remove later
-                print('tamanho dados: '+str(len(object_package.package['data']))) #remove later
-
                 object_package.update_values({'confirmation_number': (object_package.package['sequence_number'] + len(object_package.package['data']))})
 
                 self.last_seq = self.getting_sequence_number()
-
                 self._window(object_package.package)
 
                 self.verifyTripleAck(object_package, (client_address, client_port))
-
                 self.last_ack =  self.getting_last_ack()
 
                 if not self.verify_next_package_sequence(self.last_ack):
                     self.toRTT[self.last_ack] = time.time()
                     self.socket.sendto(package_string , (client_address, client_port))
 
-                print('\nTeste alteração ACK e Sequence Number ********\n') #remove later
                 print(json.dumps(object_package.package, sort_keys=True, indent=4))
-                print('\n**********************************************') #remove later
 
                 package_string = json.dumps(object_package.package, sort_keys=True, indent=4)
                 print ("\nSending a package!\n\n")
@@ -151,17 +129,12 @@ class API_TCP_UDP():
                 print ('MINHA JANELA')#remove later
                 for a in self.window: #remove later
                     print (json.dumps(a, sort_keys=True, indent=4)) #remove later (estranhamente num formatou como no cliente, e preciso formatar em json)
-                '''
-                    We must coding here functions such as send_data...
-                    Start window...timeout... sampleRTT ... to control RWND and CWND...
-                    look the sequence logic carefully and talk talk to me if necessary
-                '''
 
     def connection(self, server_address, server_port):
         if str(server_address) == 'localhost':
             server_address = '127.0.0.1'
         object_package = Package()
-        self.socket.settimeout(0.1)
+        self.socket.settimeout(1)
 
         #beginning connection
         object_package.update_values({'destination_port': server_port,'SYN': 1, 'sequence_number': 0})
@@ -213,6 +186,7 @@ class API_TCP_UDP():
         object_package = Package()
         segment = 0
         number_segment = -1
+        quebre = False
         self.last_ack = None
         self.duploAck = False
         self.triploAck = False
@@ -224,6 +198,7 @@ class API_TCP_UDP():
             print ('\nThe window is empty. \n')
         else:
             while self.slow_start: #PRECISAMOS IMPLEMENTAR O SLOW START.
+                if quebre: break
                 self.verifyRTT((address, port))
                 if segment < len(self.window):
                     for i in range(self.cwnd):
@@ -237,9 +212,6 @@ class API_TCP_UDP():
 
                         self.window[segment] = json.dumps(object_package.package, sort_keys=True, indent=4)
                         print ("\nSending a package!\n\n")
-                        print('tamanho pacote: '+str(len(json.dumps(object_package.package, sort_keys=True, indent=4))))
-                        print('tamanho dados: '+str(len(object_package.package['data'])))
-                        print (self.window[segment]) #remove later
                         self.socket.sendto(self.window[segment] , (address, port))
                         segment = segment + 1
                 else:
@@ -248,7 +220,7 @@ class API_TCP_UDP():
                             package_string, (address, port) = self.socket.recvfrom(self.buffer)
                         except:
                             if not self.toRTT:
-                                break
+                                quebre = True
                             #check RTT timeout
                             continue
                         object_package.package = json.loads(package_string)
@@ -257,17 +229,10 @@ class API_TCP_UDP():
 
                         self.verifyTripleAck(object_package, (address, port))
 
-                        print('\n**********************************************\n') #remove later
-                        print('tamanho pacote: '+str(len(package_string)))
-                        print('tamanho dados: '+str(len(object_package.package['data'])))
-                        print(package_string)
                         print ('MINHA JANELA')#remove later
                         for a in self.window: #remove later
                             print (a) #remove later
-                        print('\n**********************************************\n') #remove later
-
                     self.cwnd = self.cwnd * 2
-
 
     def create_package(self, aData, port):
         object_package = Package()
@@ -288,7 +253,6 @@ class API_TCP_UDP():
                 variavel = temp[0:self.MSS]
                 temp = temp.replace(variavel, "")
                 self.create_package(variavel, port) #create segment
-
             if temp is not None:
                 self.create_package(temp, port)
 
@@ -298,12 +262,9 @@ class API_TCP_UDP():
         elif self.last_ack == object_package.package['confirmation_number']:
             if self.duploAck:
                 self.triploAck = True
-
                 retrived_package = self.search_package(object_package.package['confirmation_number'])
-
                 ''' Re-send the ackwnoledge package? if cwnd is low? '''
                 self.socket.sendto(json.dumps(retrived_package, sort_keys=True, indent=4), address)
-
             else:
                 self.duploAck = True
         else:
@@ -336,20 +297,16 @@ class API_TCP_UDP():
 
     def getting_sequence_number(self):
         seq = 0
-
         if len(self.window) > 0:
             package = self.window[-1]
             seq = package['sequence_number'] + len(package['data'])
-
         return seq
 
     def getting_last_ack(self):
         ack = self.window[-1]['confirmation_number']
-
         if len(self.window) > 1:
             package = self.window[-2]
             ack = package['confirmation_number']
-
         return ack
 
     def verify_next_package_sequence(self, last_ack):
@@ -364,15 +321,3 @@ class API_TCP_UDP():
         else:
             print('The first ACK received ', last_ack)
             return True
-        '''
-            Aqui temos que ver se o array de dados vindo do client ultrapassa o MTU...(1500)
-            Ultrapassando... deverá ser segmentado os dados... dai que entram os pacotes e a janela...
-            a janela é uma lista de pacotes... e aqui se faz importante o numero de sequencia ao segmentar os dados...
-
-            a partir do envio do primeiro pacote devemos começar a calcular o RTT (estimativa de ida e volta)
-            no livro é citado o sampleRTT (esse NAO DEVE ser calculado para segmentos retransmitidos.)
-            procurar por estimatedRTT (tem uma fórmula específica)
-
-
-            devemos inserir timeout... entre outros controles
-        '''

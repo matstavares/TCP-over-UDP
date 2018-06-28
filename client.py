@@ -47,4 +47,4 @@ object_client.send_data(['Gremio Foot-Ball Porto Alegrense (conhecido apenas por
 
 
 
-#object_client.close_connection(connection)
+object_client.close_connection(connection)
